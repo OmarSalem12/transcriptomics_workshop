@@ -1,11 +1,19 @@
 # Install packages
+# I cloned the airway2 packages to the directory below and installed it
+# If you would like to use the same installation method please update the
+# path to where you cloned the airway2 package
+
 path <- "/Users/salemo/RNAseq_workshop/airway2"
 devtools::install_local(path)
 
+# Install the rest of the packages
 packages <- c(
-  "airway2",
-  "EnhancedVolcano", "ExploreModelMatrix",
-  "apeglm", "pheatmap", "iSEE", "iSEEu"
+  "EnhancedVolcano",
+  "ExploreModelMatrix",
+  "apeglm",
+  "pheatmap",
+  "iSEE",
+  "iSEEu"
 )
 for (package in packages) {
   if (!require(package, quietly = TRUE)) {
@@ -21,6 +29,7 @@ suppressPackageStartupMessages({
   library(DESeq2)
   library(org.Hs.eg.db)
   library(SummarizedExperiment)
+  library(EnhancedVolcano)
   library(ExploreModelMatrix)
   library(apeglm)
   library(pheatmap)
@@ -36,17 +45,25 @@ list.files(file.path(dir, "quants"))
 # Read the metadata
 coldata <- read.delim(file.path(dir, "SraRunTable.txt"))
 colnames(coldata)
+# Keep only the columns we care about
 coldata <- coldata[, c("Run", "cell_line", "treatment")]
+
+# The tximeta package requires that there is a column called names
+# representing the sample names. Hence, we first rename the Run column.
 colnames(coldata)[colnames(coldata) == "Run"] <- "names"
+
+# Add a column with the file paths to the quant.sf files
 coldata$files <- file.path(dir, "quants", coldata$names, "quant.sf")
 head(coldata)
+
+# Check that all files exist
 all(file.exists(coldata$files))
 
 
-# Import Salmon quantifications
-## Import quantifications on the transcript level
+# Import quantifications on the transcript level
 st <- tximeta(coldata = coldata, type = "salmon", dropInfReps = TRUE)
 
+# Check the assays
 column_sums_counts <- colSums(assay(st, "counts"))
 columns_sums_abundance <- colSums(assay(st, "abundance"))
 print(column_sums_counts)
@@ -62,6 +79,10 @@ sg <- tximeta::addIds(sg, "SYMBOL", gene = TRUE)
 rowData(sg)
 colData(sg)
 
+################################################################################
+############## Differential gene expression analysis ###########################
+################################################################################
+
 # Relevel the treatments and set the control as reference
 colData(sg)$treatment <- factor(colData(sg)$treatment)
 colData(sg)$treatment <- relevel(colData(sg)$treatment, ref = "Untreated")
@@ -72,6 +93,7 @@ vd <- VisualizeDesign(
   designFormula = ~ cell_line + treatment
 )
 vd$plotlist
+
 
 # Generate a DESeqDataSet object from a SummarizedExperiment object
 dds <- DESeqDataSet(sg, design = ~ cell_line + treatment)
@@ -105,9 +127,6 @@ res <- DESeq2::results(dds)
 head(res)
 summary(res)
 
-## Remove the genes that were filtered out in the independent filtering
-hist(res$pvalue[!is.na(res$padj)])
-
 # We also add a couple of extra columns that will be useful for the interactive
 # visualization later
 rowData(dds)$log10Dispersion <- log10(rowData(dds)$dispersion)
@@ -119,17 +138,17 @@ colnames(restmp) <- paste0("DESeq2_dex_vs_untrt_", colnames(restmp))
 rowData(dds) <- cbind(rowData(dds), restmp)
 
 # How do we filter the results based on LFC and or the FDR ?  FDR
-res_fdr <- results(dds, alpha = 0.05, contrast = c(
-  "treatment", "Dexamethasone",
-  "Untreated"
-))
+res_fdr <- results(dds,
+  alpha = 0.05,
+  contrast = c("treatment", "Dexamethasone", "Untreated")
+)
 table(res_fdr$padj < 0.05)
 
 # LFC
-res_lfc <- results(dds, lfcThreshold = 1, contrast = c(
-  "treatment", "Dexamethasone",
-  "Untreated"
-))
+res_lfc <- results(dds,
+  lfcThreshold = 1,
+  contrast = c("treatment", "Dexamethasone", "Untreated")
+)
 summary(res_lfc)
 
 
@@ -175,7 +194,7 @@ app <- iSEE(dds, initial = list(
 ))
 shiny::runApp(app)
 
-# Export list of DE genes
+# Export list of top 100 DE genes ordered by p-value
 stopifnot(all(rownames(res) == rownames(dds)))
 res$symbol <- rowData(dds)$SYMBOL
 
@@ -189,5 +208,5 @@ write.table(cbind(id = rownames(res_ordered_df), res_ordered_df),
 )
 
 # What's next ?
-# - Pathway analysis with (clusterProfiler)
+# - Pathway analysis (clusterProfiler)
 # - Gene set enrichment analysis (fgsea)
