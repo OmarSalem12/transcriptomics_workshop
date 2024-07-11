@@ -29,7 +29,7 @@ pbmc <- CreateSeuratObject(
 )
 
 # Let's look at the counts
-pbmc.data[1:50, 1:30]
+pbmc_data[1:50, 1:30]
 
 # Calculate QC metrics and add them to metadata
 pbmc[["percent.mt"]] <- PercentageFeatureSet(pbmc, pattern = "^MT-")
@@ -39,6 +39,7 @@ VlnPlot(pbmc,
   features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3
 )
 
+# WARNING
 ## I don't recommend filltering out large number of features
 pbmc <- subset(pbmc,
   subset = nFeature_RNA > 200 & nFeature_RNA < 2500 & percent.mt < 5
@@ -63,7 +64,10 @@ plot1 + plot2
 # Scale the data
 # Default is HVGs, but you can specify features
 all.genes <- rownames(pbmc)
-pbmc <- ScaleData(pbmc, features = all.genes, vars.to.regress = "percent.mt")
+pbmc <- ScaleData(pbmc,
+  features = all.genes,
+  vars.to.regress = "percent.mt"
+)
 
 # Dimensionality reduction
 pbmc <- RunPCA(pbmc, features = VariableFeatures(object = pbmc))
